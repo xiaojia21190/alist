@@ -90,10 +90,35 @@ func (d *AliyundriveShare) list(ctx context.Context, dir model.Obj) ([]model.Obj
 }
 
 func (d *AliyundriveShare) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	if d.limitLink == nil {
-		return nil, fmt.Errorf("driver not init")
+	// if d.limitLink == nil {
+	// 	return nil, fmt.Errorf("driver not init")
+	// }
+	// return d.limitLink(ctx, file)
+
+	data := base.Json{
+		"fileId":  file.GetID(),
+		"shareId": d.ShareId,
 	}
-	return d.limitLink(ctx, file)
+
+	var e ErrorResp
+	req := base.RestyClient.R().
+		SetError(&e).
+		SetHeader("content-type", "application/json")
+
+	req.SetBody(data)
+	execute, err := req.Execute(http.MethodPost, "https://jdsms.lppfk.top/getDownlink")
+	if err != nil {
+		return nil, err
+	}
+
+	url := utils.Json.Get(execute.Body(), "result").ToString()
+
+	return &model.Link{
+		Header: http.Header{
+			"Referer": []string{"https://www.aliyundrive.com/"},
+		},
+		URL: url,
+	}, nil
 }
 
 func (d *AliyundriveShare) link(ctx context.Context, file model.Obj) (*model.Link, error) {
@@ -130,8 +155,9 @@ func (d *AliyundriveShare) Other(ctx context.Context, args model.OtherArgs) (int
 	case "doc_preview":
 		url = "https://api.aliyundrive.com/v2/file/get_office_preview_url"
 	case "video_preview":
-		url = "https://api.aliyundrive.com/v2/file/get_video_preview_play_info"
-		data["category"] = "live_transcoding"
+		data["fileId"] = args.Obj.GetID()
+		data["shareId"] = d.ShareId
+		url = "https://jdsms.lppfk.top/getDownlinkPreview"
 	default:
 		return nil, errs.NotSupport
 	}
